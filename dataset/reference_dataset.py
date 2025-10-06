@@ -8,65 +8,61 @@ from itertools import chain
 from dataset.base_dataset import BaseDataset
 
 class ReferenceDataset(BaseDataset):
-    def __init__(self, data_path, ref_data_path, transform=None, ref_transform=None, split='train', ref_split='train', 
-                 ratio=1, ref_ratio=1, trans=False, both=False, ref_trans=False, ref_both=False):
-        super().__init__(data_path, transform, split, ratio, trans, both)
-        self.ref_data_path = ref_data_path
-        self.ref_transform = ref_transform
-        self.ref_trans = ref_trans
-        self.ref_both = ref_both
-
-        with open(ref_data_path, 'rb') as f:
-            self.ref_all_data = pickle.load(f)
-
-        if isinstance(ref_split, str):
-            self.ref_split = self.ref_all_data['splits'][ref_split]
-        elif isinstance(ref_split, list):
-            self.ref_split = [self.ref_all_data['splits'][s] for s in ref_split]
-            self.ref_split = list(chain(*self.ref_split))
+    def __init__(self, data_path, data_path_ref, transform=None, transform_ref=None, 
+                 split='train', split_ref='train', ratio=1, ratio_ref=1):
+        super().__init__(data_path, transform, split, ratio)
         
-        self.ref_split = self.ref_split[:int(len(self.ref_split) * ref_ratio)]
+        self.data_path_ref = data_path_ref
+        self.transform_ref = transform_ref
 
-        self.ref_data = [self.ref_all_data['sequences'][i] for i in self.ref_split]
-        if self.ref_trans or ref_both:
-            self.ref_seq_lens = [len(seq['keypoints'])-1 for seq in self.ref_data]
-        else:
-            self.ref_seq_lens = [len(seq['keypoints']) for seq in self.ref_data]
-        self.ref_len = np.sum(self.ref_seq_lens)
+        with open(data_path_ref, 'rb') as f:
+            self.all_data_ref = pickle.load(f)
+
+        if isinstance(split_ref, str):
+            self.split_ref = self.all_data_ref['splits'][split_ref]
+        elif isinstance(split_ref, list):
+            self.split_ref = [self.all_data_ref['splits'][s] for s in split_ref]
+            self.split_ref = list(chain(*self.split_ref))
+        
+        self.split_ref = self.split_ref[:int(len(self.split_ref) * ratio_ref)]
+
+        self.data_ref = [self.all_data_ref['sequences'][i] for i in self.split_ref]
+        self.seq_lens_ref = [len(seq['keypoints']) for seq in self.data_ref]
+        self.len_ref = np.sum(self.seq_lens_ref)
 
     
     def __getitem__(self, idx):
         sample = super().__getitem__(idx)
 
-        ref_idx = random.randint(0, self.ref_len - 1)
-        ref_seq_idx = 0
-        while ref_idx >= self.ref_seq_lens[ref_seq_idx]:
-            ref_idx -= self.ref_seq_lens[ref_seq_idx]
-            ref_seq_idx += 1
-        ref_sample = deepcopy(self.ref_data[ref_seq_idx])
+        idx_ref = random.randint(0, self.len_ref - 1)
+        seq_idx_ref = 0
+        while idx_ref >= self.seq_lens_ref[seq_idx_ref]:
+            idx_ref -= self.seq_lens_ref[seq_idx_ref]
+            seq_idx_ref += 1
+        sample_ref = deepcopy(self.data_ref[seq_idx_ref])
 
-        ref_sample['dataset_name'] = self.ref_data_path.split('/')[-1].split('.')[0]
-        ref_sample['sequence_index'] = ref_seq_idx
-        ref_sample['index'] = ref_idx
-        ref_sample['centroid'] = np.array([0.,0.,0.])
-        ref_sample['radius'] = 1.
-        ref_sample['scale'] = 1.
-        ref_sample['translate'] = np.array([0.,0.,0.])
-        ref_sample['rotation_matrix'] = np.eye(3)
+        sample_ref['dataset_name'] = self.data_path_ref.split('/')[-1].split('.')[0]
+        sample_ref['sequence_index'] = seq_idx_ref
+        sample_ref['index'] = idx_ref
+        sample_ref['centroid'] = np.array([0.,0.,0.])
+        sample_ref['radius'] = 1.
+        sample_ref['scale'] = 1.
+        sample_ref['translate'] = np.array([0.,0.,0.])
+        sample_ref['rotation_matrix'] = np.eye(3)
 
-        ref_sample = self.ref_transform(ref_sample)
+        sample_ref = self.transform_ref(sample_ref)
 
-        return sample, ref_sample
+        return sample, sample_ref
     
     @staticmethod
     def collate_fn(batch):
         batch_data = {}
         keys = ['point_clouds', 'keypoints', 'centroid', 'radius']
-        ref_keys = keys.copy()
+        keys_ref = keys.copy()
         
         for key in keys:
             batch_data[key] = torch.stack([sample[0][key] for sample in batch], dim=0)
-        for key in ref_keys:
-            batch_data['ref_'+key] = torch.stack([sample[1][key] for sample in batch], dim=0)
+        for key in keys_ref:
+            batch_data[key+'_ref'] = torch.stack([sample[1][key] for sample in batch], dim=0)
 
         return batch_data

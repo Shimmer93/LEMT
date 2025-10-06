@@ -41,7 +41,7 @@ class ConvertToMMWavePointCloud():
         sample['keypoints'] = sample['keypoints'][:-1]
         return sample
     
-class ConvertToRefinedMMWavePointCloud():
+class FlowBasedPointFiltering():
     def __init__(self, max_dist_threshold=0.1, min_dist_threshold=0.05, add_std=0.1, default_num_points=32, num_noisy_points=32):
         self.max_dist_threshold = max_dist_threshold
         self.min_dist_threshold = min_dist_threshold
@@ -104,5 +104,5 @@ class ConvertToRefinedMMWavePointCloud():
             new_pcs.append(new_pc)
     
         sample['point_clouds'] = new_pcs
-        sample['keypoints'] = sample['keypoints'][:-1]
+        sample['keypoints'] = sample['keypoints'][1:]
         return sample

@@ -22,22 +22,20 @@ def set_3d_ax_limits(ax, bounds, padding=0.1):
 
 def set_2d_ax_limits(ax, bounds, dims=[0, 1], padding=0.1):
     min_x, max_x, min_y, max_y, min_z, max_z = bounds
+    ax.set_aspect('equal')
     if dims == [0, 1]:
         range_x = max_x - min_x
         range_y = max_y - min_y
-        ax.set_aspect(range_x / range_y)
         ax.set_xlim(min_x - padding * range_x, max_x + padding * range_x)
         ax.set_ylim(min_y - padding * range_y, max_y + padding * range_y)
     elif dims == [0, 2]:
         range_x = max_x - min_x
         range_z = max_z - min_z
-        ax.set_aspect(range_x / range_z)
         ax.set_xlim(min_x - padding * range_x, max_x + padding * range_x)
         ax.set_ylim(min_z - padding * range_z, max_z + padding * range_z)
     elif dims == [1, 2]:
         range_y = max_y - min_y
         range_z = max_z - min_z
-        ax.set_aspect(range_y / range_z)
         ax.set_xlim(min_y - padding * range_y, max_y + padding * range_y)
         ax.set_ylim(min_z - padding * range_z, max_z + padding * range_z)
 

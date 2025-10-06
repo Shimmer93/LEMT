@@ -11,6 +11,7 @@ from model.metrics import calulate_error
 from misc.utils import torch2numpy, import_with_str, delete_prefix_from_state_dict
 from misc.skeleton import ITOPSkeleton, JOINT_COLOR_MAP
 from misc.vis import visualize_sample
+from loss.unsup import UnsupLoss
 
 def create_model(model_name, model_params):
     if model_params is None:
@@ -23,7 +24,7 @@ def create_loss(loss_name, loss_params):
     if loss_params is None:
         loss_params = {}
     if loss_name == 'UnsupLoss':
-        loss_class = import_with_str('loss', loss_name)
+        loss_class = UnsupLoss
         loss = loss_class(**loss_params)
     else:
         loss_class = import_with_str('torch.nn', loss_name)
@@ -69,8 +70,24 @@ class LitModel(L.LightningModule):
 
     def _calculate_loss(self, batch):
 
-        if False:
-            pass
+        if hasattr(self.hparams, 'lemt_pl') and self.hparams.lemt_pl:
+            x_sup, y_sup = batch['point_clouds'], batch['keypoints']
+            x_unsup = batch['point_clouds_unsup']
+            x_lidar, y_lidar = batch['point_clouds_ref'], batch['keypoints_ref']
+
+            y_hat_sup = self.model(x_sup)
+            y_hat_lidar = self.model(x_lidar)
+            loss_sup = F.mse_loss(y_hat_sup, y_sup) + F.mse_loss(y_hat_lidar, y_lidar)
+            
+            with torch.no_grad():
+                y_hat_unsup0 = self.model(x_unsup[:, :-1])
+                y_hat_unsup1 = self.model(x_unsup[:, 1:])
+            loss_dynamic, loss_static = self.loss_fn(x_unsup, y_hat_unsup0, y_hat_unsup1)
+
+            loss = loss_sup + self.hparams.unsup_weight * (loss_dynamic + loss_static)
+            loss_dict = {'loss_sup': loss_sup.item(), 'loss_unsup': (loss_dynamic + loss_static).item(), 'loss': loss.item()}
+            y_hat = y_hat_sup
+
         else:
             x, y = batch['point_clouds'], batch['keypoints']
             y_hat = self.model(x)
@@ -80,8 +97,8 @@ class LitModel(L.LightningModule):
         return loss, loss_dict, y_hat
     
     def _visualize(self, x, y, y_hat):
-        sample = x[0][0], y[0][0], y_hat[0][0]
-        fig = visualize_sample(sample, edges=ITOPSkeleton.bones, point_size=2, joint_size=20, linewidth=2, padding=0.1)
+        sample = x[0][0][:, [0, 2, 1]], y[0][0][:, [0, 2, 1]], y_hat[0][0][:, [0, 2, 1]]
+        fig = visualize_sample(sample, edges=ITOPSkeleton.bones, point_size=2, joint_size=25, linewidth=2, padding=0.1)
         tb = self.logger.experiment
         tb.add_figure('val_sample', fig, global_step=self.global_step)
         plt.close(fig)
@@ -96,7 +113,7 @@ class LitModel(L.LightningModule):
         mpjpe, pampjpe = calulate_error(y_hat_rec, y_rec)
         log_dict = {**log_dict, 'train_mpjpe': mpjpe, 'train_pampjpe': pampjpe}
 
-        self.log_dict(log_dict, prog_bar=True, on_step=True, on_epoch=True)
+        self.log_dict(log_dict, prog_bar=True, on_epoch=True, sync_dist=True)
         return loss
     
     def validation_step(self, batch, batch_idx):
@@ -107,9 +124,9 @@ class LitModel(L.LightningModule):
         mpjpe, pampjpe = calulate_error(y_hat_rec, y_rec)
         log_dict = {'val_mpjpe': mpjpe, 'val_pampjpe': pampjpe}
 
-        self.log_dict(log_dict, prog_bar=True, on_step=True, on_epoch=True)
+        self.log_dict(log_dict, prog_bar=True, on_epoch=True, sync_dist=True)
 
-        if batch_idx == 0:
+        if batch_idx == 10:
             self._visualize(x_rec, y_rec, y_hat_rec)
 
     def test_step(self, batch, batch_idx):
@@ -120,9 +137,9 @@ class LitModel(L.LightningModule):
         mpjpe, pampjpe = calulate_error(y_hat_rec, y_rec)
         log_dict = {'test_mpjpe': mpjpe, 'test_pampjpe': pampjpe}
 
-        self.log_dict(log_dict, prog_bar=True, on_step=True, on_epoch=True)
+        self.log_dict(log_dict, prog_bar=True, on_epoch=True, sync_dist=True)
 
-        if batch_idx == 0:
+        if batch_idx == 10:
             self._visualize(x_rec, y_rec, y_hat_rec)
 
     def configure_optimizers(self):

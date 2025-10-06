@@ -6,11 +6,11 @@ from copy import deepcopy
 from itertools import chain
 
 class BaseDataset(Dataset):
-    def __init__(self, data_path, transform=None, split='train', ratio=1, trans=False, both=False):
+    def __init__(self, data_path, transform=None, split='train', ratio=1):
+        super().__init__()
+        
         self.data_path = data_path
         self.transform = transform
-        self.trans = trans
-        self.both = both
 
         with open(data_path, 'rb') as f:
             self.all_data = pickle.load(f)
@@ -22,13 +22,8 @@ class BaseDataset(Dataset):
             self.split = list(chain(*self.split))
 
         self.split = self.split[:int(len(self.split) * ratio)]
-        
         self.data = [self.all_data['sequences'][i] for i in self.split]
-
-        if self.trans or self.both:
-            self.seq_lens = [len(seq['keypoints'])-1 for seq in self.data]
-        else:
-            self.seq_lens = [len(seq['keypoints']) for seq in self.data]
+        self.seq_lens = [len(seq['keypoints']) for seq in self.data]
 
     def __len__(self):
         return np.sum(self.seq_lens)

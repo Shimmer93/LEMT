@@ -31,13 +31,24 @@ def create_dataset(dataset_name, dataset_params, pipeline):
     collate_fn = dataset_class.collate_fn
     return dataset, collate_fn
 
-def create_ref_dataset(dataset_name, dataset_params, pipeline, ref_pipeline):
+def create_ref_dataset(dataset_name, dataset_params, pipeline, pipeline_ref):
     if dataset_params is None:
         dataset_params = {}
     transform = PipelineTransform(pipeline)
-    ref_transform = PipelineTransform(ref_pipeline)
+    transform_ref = PipelineTransform(pipeline_ref)
     dataset_class = import_with_str('dataset', dataset_name)
-    dataset = dataset_class(transform=transform, ref_transform=ref_transform, **dataset_params)
+    dataset = dataset_class(transform=transform, transform_ref=transform_ref, **dataset_params)
+    collate_fn = dataset_class.collate_fn
+    return dataset, collate_fn
+
+def create_lapl_dataset(dataset_name, dataset_params, pipeline, pipeline_unsup, pipeline_ref):
+    if dataset_params is None:
+        dataset_params = {}
+    transform = PipelineTransform(pipeline)
+    transform_unsup = PipelineTransform(pipeline_unsup)
+    transform_ref = PipelineTransform(pipeline_ref)
+    dataset_class = import_with_str('dataset', dataset_name)
+    dataset = dataset_class(transform=transform, transform_unsup=transform_unsup, transform_ref=transform_ref, **dataset_params)
     collate_fn = dataset_class.collate_fn
     return dataset, collate_fn
 
@@ -50,14 +61,42 @@ class LitDataModule(L.LightningDataModule):
     def setup(self, stage):
         if stage == 'fit' or stage is None:
             if self.hparams.train_dataset['name'] in ['ReferenceDataset', 'ReferenceOneToOneDataset']:
-                self.train_dataset, self.train_collate_fn = create_ref_dataset(self.hparams.train_dataset['name'], self.hparams.train_dataset['params'], self.hparams.train_pipeline, self.hparams.ref_pipeline)
+                self.train_dataset, self.train_collate_fn = create_ref_dataset(
+                    self.hparams.train_dataset['name'], 
+                    self.hparams.train_dataset['params'], 
+                    self.hparams.train_pipeline, 
+                    self.hparams.ref_pipeline)
+            elif self.hparams.train_dataset['name'] in ['LiDARAssistedPseudoLabelingDataset']:
+                self.train_dataset, self.train_collate_fn = create_lapl_dataset(
+                    self.hparams.train_dataset['name'], 
+                    self.hparams.train_dataset['params'], 
+                    self.hparams.train_pipeline, 
+                    self.hparams.unsup_pipeline, 
+                    self.hparams.ref_pipeline
+                )
             else:
-                self.train_dataset, self.train_collate_fn = create_dataset(self.hparams.train_dataset['name'], self.hparams.train_dataset['params'], self.hparams.train_pipeline)
-            self.val_dataset, self.val_collate_fn = create_dataset(self.hparams.val_dataset['name'], self.hparams.val_dataset['params'], self.hparams.val_pipeline)
+                self.train_dataset, self.train_collate_fn = create_dataset(
+                    self.hparams.train_dataset['name'], 
+                    self.hparams.train_dataset['params'], 
+                    self.hparams.train_pipeline
+                )
+            self.val_dataset, self.val_collate_fn = create_dataset(
+                self.hparams.val_dataset['name'], 
+                self.hparams.val_dataset['params'], 
+                self.hparams.val_pipeline
+            )
         elif stage == 'test':
-            self.test_dataset, self.test_collate_fn = create_dataset(self.hparams.test_dataset['name'], self.hparams.test_dataset['params'], self.hparams.test_pipeline)
+            self.test_dataset, self.test_collate_fn = create_dataset(
+                self.hparams.test_dataset['name'], 
+                self.hparams.test_dataset['params'], 
+                self.hparams.test_pipeline
+            )
         elif stage == 'predict':
-            self.predict_dataset, self.predict_collate_fn = create_dataset(self.hparams.predict_dataset['name'], self.hparams.predict_dataset['params'], self.hparams.predict_pipeline)
+            self.predict_dataset, self.predict_collate_fn = create_dataset(
+                self.hparams.predict_dataset['name'], 
+                self.hparams.predict_dataset['params'], 
+                self.hparams.predict_pipeline
+            )
         else:
             raise ValueError(f'Unknown stage: {stage}')
 
