@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# CUDA_VISIBLE_DEVICES=0,1 python main.py -g 2 -n 1 -w 8 -b 64 -e 16 --exp_name hmpear_mmfi_new3 -c cfg/exp/final/hmpear_mmfi.yml --version $(date +'%Y%m%d_%H%M%S') --ours --checkpoint_path /home/zpengac/mmwave/dgmmwave/logs/hmpear_mmfi_new3/20251004_233522/P4Transformer-epoch=72-val_mpjpe=0.0811.ckpt --test
+CUDA_VISIBLE_DEVICES=0,1 python main.py -g 2 -n 1 -w 8 -b 64 -e 16 --exp_name mmfi_p4t -c cfg/base/mmfi.yml --version $(date +'%Y%m%d_%H%M%S') #--ours --checkpoint_path /home/zpengac/mmwave/dgmmwave/logs/hmpear_mmfi_new3/20251004_233522/P4Transformer-epoch=72-val_mpjpe=0.0811.ckpt --test
