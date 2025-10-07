@@ -8,7 +8,7 @@ import os
 import pickle
 
 from model.metrics import calulate_error
-from misc.utils import torch2numpy, import_with_str, delete_prefix_from_state_dict
+from misc.utils import torch2numpy, import_with_str, delete_prefix_from_state_dict, exists_and_is_true
 from misc.skeleton import ITOPSkeleton, JOINT_COLOR_MAP
 from misc.vis import visualize_sample
 from loss.unsup import UnsupLoss
@@ -52,6 +52,10 @@ class LitModel(L.LightningModule):
         self.save_hyperparameters(hparams)
         
         self.model = create_model(self.hparams.model_name, self.hparams.model_params)
+
+        if exists_and_is_true(self.hparams, 'lemt'):
+            self.model_teacher = create_model(self.hparams.model_name, self.hparams.model_params)
+
         if hparams.checkpoint_path is not None:
             self.load_state_dict(torch.load(hparams.checkpoint_path, map_location=self.device)['state_dict'], strict=False)
         self.loss_fn = create_loss(self.hparams.loss_name, self.hparams.loss_params)
@@ -70,7 +74,7 @@ class LitModel(L.LightningModule):
 
     def _calculate_loss(self, batch):
 
-        if hasattr(self.hparams, 'lemt_pl') and self.hparams.lemt_pl:
+        if exists_and_is_true(self.hparams, 'lemt_pl'):
             x_sup, y_sup = batch['point_clouds'], batch['keypoints']
             x_unsup = batch['point_clouds_unsup']
             x_lidar, y_lidar = batch['point_clouds_ref'], batch['keypoints_ref']
@@ -86,6 +90,59 @@ class LitModel(L.LightningModule):
 
             loss = loss_sup + self.hparams.unsup_weight * (loss_dynamic + loss_static)
             loss_dict = {'loss_sup': loss_sup.item(), 'loss_unsup': (loss_dynamic + loss_static).item(), 'loss': loss.item()}
+            y_hat = y_hat_sup
+
+        elif exists_and_is_true(self.hparams, 'lemt_train'):
+            x_sup, y_sup = batch['point_clouds'], batch['keypoints']
+            x_pl, y_pl = batch['point_clouds_pl'], batch['keypoints_pl']
+            x_lidar, y_lidar = batch['point_clouds_ref'], batch['keypoints_ref']
+
+            y_hat_sup = self.model(x_sup)
+            y_hat_pl = self.model(x_pl)
+            y_hat_lidar = self.model(x_lidar)
+            loss_sup = F.mse_loss(y_hat_sup, y_sup)
+            loss_pl = F.mse_loss(y_hat_pl, y_pl)
+            loss_lidar = F.mse_loss(y_hat_lidar, y_lidar)
+
+            loss = loss_sup + self.hparams.pl_weight * loss_pl + self.hparams.lidar_weight * loss_lidar
+            loss_dict = {'loss_sup': loss_sup.item(), 'loss_pl': loss_pl.item(), 'loss_lidar': loss_lidar.item(), 'loss': loss.item()}
+            y_hat = y_hat_sup
+        
+        elif exists_and_is_true(self.hparams, 'lemt'):
+            x_sup, y_sup = batch['point_clouds'], batch['keypoints']
+            x_unsup = batch['point_clouds_unsup']
+            x_lidar, y_lidar = batch['point_clouds_ref'], batch['keypoints_ref']
+
+            y_hat_sup = self.model(x_sup)
+            y_hat_lidar = self.model(x_lidar)
+
+            yt_hat_sup = self.model_teacher(x_sup)
+            yt_hat_lidar = self.model_teacher(x_lidar)
+
+            loss_sup = F.mse_loss(y_hat_sup, y_sup) + F.mse_loss(yt_hat_sup, y_sup)
+            loss_lidar = F.mse_loss(y_hat_lidar, y_lidar) + F.mse_loss(yt_hat_lidar, y_lidar)
+
+            x_unsup0 = x_unsup[:, :-1]
+            x_unsup1 = x_unsup[:, 1:]
+
+            with torch.no_grad():
+                yt_hat_unsup0 = self.model_teacher(x_unsup0)
+                yt_hat_unsup1 = self.model_teacher(x_unsup1)
+
+            y_hat_unsup0 = self.model(x_unsup0)
+            y_hat_unsup1 = self.model(x_unsup1)
+
+            loss_pseudo = F.mse_loss(y_hat_unsup0, yt_hat_unsup0.detach()) + F.mse_loss(y_hat_unsup1, yt_hat_unsup1.detach())
+            loss_dynamic, loss_static = self.loss_fn(x_unsup, y_hat_unsup0, y_hat_unsup1)
+
+            loss = loss_sup + self.hparams.w_lidar * loss_lidar + \
+                              self.hparams.w_pseudo * loss_pseudo + \
+                              self.hparams.w_dynamic * loss_dynamic + \
+                              self.hparams.w_static * loss_static
+            
+            loss_dict = {'loss_sup': loss_sup.item(), 'loss_lidar': loss_lidar.item(), 
+                         'loss_pseudo': loss_pseudo.item(), 'loss_dynamic': loss_dynamic.item(), 
+                         'loss_static': loss_static.item(), 'loss': loss.item()}
             y_hat = y_hat_sup
 
         else:
@@ -141,6 +198,12 @@ class LitModel(L.LightningModule):
 
         if batch_idx == 10:
             self._visualize(x_rec, y_rec, y_hat_rec)
+
+    def predict_step(self, batch, batch_idx):
+        x, c, r, si, gi = batch['point_clouds'], batch['centroid'], batch['radius'], batch['sequence_index'], batch['global_index']
+        y_hat = self.model(x)
+        y_hat = self._recover_data(y_hat, c, r)
+        return y_hat, si, gi
 
     def configure_optimizers(self):
         optimizer = create_optimizer(self.hparams.optim_name, self.hparams.optim_params, self.model.parameters())

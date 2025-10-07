@@ -36,6 +36,7 @@ class ReferenceDataset(BaseDataset):
 
         idx_ref = random.randint(0, self.len_ref - 1)
         seq_idx_ref = 0
+        global_idx_ref = idx_ref
         while idx_ref >= self.seq_lens_ref[seq_idx_ref]:
             idx_ref -= self.seq_lens_ref[seq_idx_ref]
             seq_idx_ref += 1
@@ -43,6 +44,7 @@ class ReferenceDataset(BaseDataset):
 
         sample_ref['dataset_name'] = self.data_path_ref.split('/')[-1].split('.')[0]
         sample_ref['sequence_index'] = seq_idx_ref
+        sample_ref['global_index'] = global_idx_ref
         sample_ref['index'] = idx_ref
         sample_ref['centroid'] = np.array([0.,0.,0.])
         sample_ref['radius'] = 1.
@@ -57,7 +59,7 @@ class ReferenceDataset(BaseDataset):
     @staticmethod
     def collate_fn(batch):
         batch_data = {}
-        keys = ['point_clouds', 'keypoints', 'centroid', 'radius']
+        keys = ['point_clouds', 'keypoints', 'centroid', 'radius', 'sequence_index', 'index', 'global_index']
         keys_ref = keys.copy()
         
         for key in keys:

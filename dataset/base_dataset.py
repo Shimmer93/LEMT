@@ -16,12 +16,12 @@ class BaseDataset(Dataset):
             self.all_data = pickle.load(f)
 
         if isinstance(split, str):
-            self.split = self.all_data['splits'][split]
+            self.split_ = self.all_data['splits'][split]
         elif isinstance(split, list):
-            self.split = [self.all_data['splits'][s] for s in split]
-            self.split = list(chain(*self.split))
+            self.split_ = [self.all_data['splits'][s] for s in split]
+            self.split_ = list(chain(*self.split_))
 
-        self.split = self.split[:int(len(self.split) * ratio)]
+        self.split = self.split_[:int(len(self.split_) * ratio)]
         self.data = [self.all_data['sequences'][i] for i in self.split]
         self.seq_lens = [len(seq['keypoints']) for seq in self.data]
 
@@ -30,6 +30,7 @@ class BaseDataset(Dataset):
     
     def __getitem__(self, idx):
         seq_idx = 0
+        global_idx = idx
         while idx >= self.seq_lens[seq_idx]:
             idx -= self.seq_lens[seq_idx]
             seq_idx += 1
@@ -37,6 +38,7 @@ class BaseDataset(Dataset):
 
         sample['dataset_name'] = self.data_path.split('/')[-1].split('.')[0]
         sample['sequence_index'] = seq_idx
+        sample['global_index'] = global_idx
         sample['index'] = idx
         sample['centroid'] = np.array([0.,0.,0.])
         sample['radius'] = 1.
@@ -51,11 +53,7 @@ class BaseDataset(Dataset):
     @staticmethod
     def collate_fn(batch):
         batch_data = {}
-        keys = ['point_clouds', 'keypoints', 'centroid', 'radius', 'sequence_index']
-        # print(type(batch[0]['point_clouds_trans']))
-        if 'point_clouds_trans' in batch[0].keys() and isinstance(batch[0]['point_clouds_trans'], torch.Tensor):
-            keys.append('point_clouds_trans')
-        # print('collate_fn keys: ', keys)
+        keys = ['point_clouds', 'keypoints', 'centroid', 'radius', 'sequence_index', 'index', 'global_index']
         for key in keys:
             batch_data[key] = torch.stack([sample[key] for sample in batch], dim=0)
 

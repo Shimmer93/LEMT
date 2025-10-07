@@ -13,7 +13,7 @@ class LiDARAssistedPseudoLabelingDataset(ReferenceDataset):
         super().__init__(data_path, data_path_ref, transform, transform_ref, split, split_ref, ratio, ratio_ref)
 
         self.transform_unsup = transform_unsup
-        self.split_unsup = self.split[int(len(self.split) * ratio):]
+        self.split_unsup = self.split_[int(len(self.split_) * ratio):]
         self.data_unsup = [self.all_data['sequences'][i] for i in self.split_unsup]
         self.seq_lens_unsup = [len(seq['keypoints']) for seq in self.data_unsup]
         self.len_unsup = int(np.sum(self.seq_lens_unsup))
@@ -23,6 +23,7 @@ class LiDARAssistedPseudoLabelingDataset(ReferenceDataset):
 
         idx_unsup = random.randint(0, self.len_unsup - 1)
         seq_idx_unsup = 0
+        global_idx_unsup = idx_unsup
         while idx_unsup >= self.seq_lens_unsup[seq_idx_unsup]:
             idx_unsup -= self.seq_lens_unsup[seq_idx_unsup]
             seq_idx_unsup += 1
@@ -30,6 +31,7 @@ class LiDARAssistedPseudoLabelingDataset(ReferenceDataset):
 
         sample_unsup['dataset_name'] = self.data_path.split('/')[-1].split('.')[0]
         sample_unsup['sequence_index'] = seq_idx_unsup
+        sample_unsup['global_index'] = global_idx_unsup
         sample_unsup['index'] = idx_unsup
         sample_unsup['centroid'] = np.array([0.,0.,0.])
         sample_unsup['radius'] = 1.
@@ -44,7 +46,7 @@ class LiDARAssistedPseudoLabelingDataset(ReferenceDataset):
     @staticmethod
     def collate_fn(batch):
         batch_data = {}
-        keys = ['point_clouds', 'keypoints', 'centroid', 'radius']
+        keys = ['point_clouds', 'keypoints', 'centroid', 'radius', 'sequence_index', 'index', 'global_index']
         keys_unsup = keys.copy()
         keys_ref = keys.copy()
         

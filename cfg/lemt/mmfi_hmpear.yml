@@ -48,7 +48,7 @@ sched_params:
 # --------------------------------------
 # Model parameters
 # --------------------------------------
-lemt_pl: True
+lemt: True
 model_name: P4Transformer
 model_params:
   radius: 0.7
@@ -69,10 +69,13 @@ model_params:
 # --------------------------------------
 loss_name: UnsupLoss
 loss_params:
-  thres_static: 0.2
-  thres_dynamic: 0.1
+  thres_static: 0.15
+  thres_dynamic: 0.05
   thres_loss: 0.1
-unsup_weight: 1.0
+w_lidar: 1.0
+w_pseudo: 0.1
+w_dynamic: 0.01
+w_static: 0.01
 # --------------------------------------
 # Augmentation parameters
 # --------------------------------------

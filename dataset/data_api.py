@@ -48,7 +48,10 @@ def create_lapl_dataset(dataset_name, dataset_params, pipeline, pipeline_unsup, 
     transform_unsup = PipelineTransform(pipeline_unsup)
     transform_ref = PipelineTransform(pipeline_ref)
     dataset_class = import_with_str('dataset', dataset_name)
-    dataset = dataset_class(transform=transform, transform_unsup=transform_unsup, transform_ref=transform_ref, **dataset_params)
+    if dataset_name == 'LiDARAndPseudoLabeledTrainingDataset':
+        dataset = dataset_class(transform=transform, transform_pl=transform_unsup, transform_ref=transform_ref, **dataset_params)
+    else:
+        dataset = dataset_class(transform=transform, transform_unsup=transform_unsup, transform_ref=transform_ref, **dataset_params)
     collate_fn = dataset_class.collate_fn
     return dataset, collate_fn
 
@@ -66,12 +69,12 @@ class LitDataModule(L.LightningDataModule):
                     self.hparams.train_dataset['params'], 
                     self.hparams.train_pipeline, 
                     self.hparams.ref_pipeline)
-            elif self.hparams.train_dataset['name'] in ['LiDARAssistedPseudoLabelingDataset']:
+            elif self.hparams.train_dataset['name'] in ['LiDARAssistedPseudoLabelingDataset', 'LiDARAndPseudoLabeledTrainingDataset']:
                 self.train_dataset, self.train_collate_fn = create_lapl_dataset(
                     self.hparams.train_dataset['name'], 
                     self.hparams.train_dataset['params'], 
                     self.hparams.train_pipeline, 
-                    self.hparams.unsup_pipeline, 
+                    self.hparams.unsup_pipeline if hasattr(self.hparams, 'unsup_pipeline') else self.hparams.pl_pipeline,
                     self.hparams.ref_pipeline
                 )
             else:

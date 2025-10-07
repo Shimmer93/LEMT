@@ -4,6 +4,7 @@ warnings.filterwarnings("ignore")
 from argparse import ArgumentParser
 import os
 
+import numpy as np
 import torch
 import lightning as L
 from lightning.pytorch.callbacks import ModelCheckpoint, RichProgressBar
@@ -40,7 +41,7 @@ def main(args):
         fast_dev_run=args.dev,
         logger=logger, # wandb_logger if wandb_on else None,
         max_epochs=args.epochs,
-        devices=args.gpus,
+        devices=1 if args.predict else args.gpus, # Use 1 GPU for prediction
         accelerator="gpu",
         sync_batchnorm=args.sync_batchnorm,
         num_nodes=args.num_nodes,
@@ -53,6 +54,11 @@ def main(args):
 
     if bool(args.test):
         trainer.test(model, datamodule=dm)
+    elif bool(args.predict):
+        predictions = trainer.predict(model, datamodule=dm, return_predictions=True)
+        save_path = os.path.join('logs', args.exp_name, args.version, f'{args.model_name}_predictions.pt')
+        print(f'Saving predictions to {save_path}')
+        torch.save(predictions, save_path)
     else:
         trainer.fit(model, datamodule=dm)
         if args.dev == 0:
@@ -73,7 +79,6 @@ if __name__ == '__main__':
     parser.add_argument('--pin_memory', action='store_true')
     parser.add_argument("--checkpoint_path", type=str, default=None)
     parser.add_argument('--test', action='store_true')
-    parser.add_argument('--save_when_test', action='store_true')
     parser.add_argument('--predict', action='store_true')
     parser.add_argument('--exp_name', type=str, default='fasternet')
     parser.add_argument("--version", type=str, default="0")

@@ -32,3 +32,6 @@ def delete_prefix_from_state_dict(state_dict, prefix):
         else:
             new_state_dict[k] = v
     return new_state_dict
+
+def exists_and_is_true(hparams, key):
+    return hasattr(hparams, key) and getattr(hparams, key)

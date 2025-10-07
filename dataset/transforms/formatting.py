@@ -16,7 +16,7 @@ class ToTensor():
             if key in sample:
                 sample[key] = self._array_to_tensor(sample[key])
 
-        for key in ['action', 'sequence_index', 'index']:
+        for key in ['action', 'sequence_index', 'index', 'global_index']:
             if key in sample:
                 sample[key] = self._item_to_tensor(sample[key], dtype=torch.long)
 
