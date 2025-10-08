@@ -8,6 +8,7 @@ import os
 import pickle
 
 from model.metrics import calulate_error
+from misc.lr_scheduler import LinearWarmupCosineAnnealingLR
 from misc.utils import torch2numpy, import_with_str, delete_prefix_from_state_dict, exists_and_is_true
 from misc.skeleton import ITOPSkeleton, JOINT_COLOR_MAP
 from misc.vis import visualize_sample
@@ -41,7 +42,10 @@ def create_optimizer(optim_name, optim_params, mparams):
 def create_scheduler(sched_name, sched_params, optimizer):
     if sched_params is None:
         sched_params = {}
-    sched_class = import_with_str('torch.optim.lr_scheduler', sched_name)
+    if sched_name == 'LinearWarmupCosineAnnealingLR':
+        sched_class = LinearWarmupCosineAnnealingLR
+    else:
+        sched_class = import_with_str('torch.optim.lr_scheduler', sched_name)
     scheduler = sched_class(optimizer, **sched_params)
     return scheduler
 
@@ -206,6 +210,10 @@ class LitModel(L.LightningModule):
         return y_hat, si, gi
 
     def configure_optimizers(self):
-        optimizer = create_optimizer(self.hparams.optim_name, self.hparams.optim_params, self.model.parameters())
+        if exists_and_is_true(self.hparams, 'lemt'):
+            all_params = list(self.model.parameters()) + list(self.model_teacher.parameters())
+        else:
+            all_params = self.model.parameters()
+        optimizer = create_optimizer(self.hparams.optim_name, self.hparams.optim_params, all_params)
         scheduler = create_scheduler(self.hparams.sched_name, self.hparams.sched_params, optimizer)
         return [optimizer], [scheduler]

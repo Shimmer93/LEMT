@@ -1,0 +1,10 @@
+matplotlib
+pandas
+einops
+scipy
+miniball
+tensorboard
+scikit-learn
+h5py
+ninja
+rich
