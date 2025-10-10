@@ -19,12 +19,12 @@ class ReferenceDataset(BaseDataset):
             self.all_data_ref = pickle.load(f)
 
         if isinstance(split_ref, str):
-            self.split_ref = self.all_data_ref['splits'][split_ref]
+            self.split_ref_ = self.all_data_ref['splits'][split_ref]
         elif isinstance(split_ref, list):
-            self.split_ref = [self.all_data_ref['splits'][s] for s in split_ref]
-            self.split_ref = list(chain(*self.split_ref))
-        
-        self.split_ref = self.split_ref[:int(len(self.split_ref) * ratio_ref)]
+            self.split_ref_ = [self.all_data_ref['splits'][s] for s in split_ref]
+            self.split_ref_ = list(chain(*self.split_ref_))
+
+        self.split_ref = self.split_ref_[:int(len(self.split_ref_) * ratio_ref)]
 
         self.data_ref = [self.all_data_ref['sequences'][i] for i in self.split_ref]
         self.seq_lens_ref = [len(seq['keypoints']) for seq in self.data_ref]

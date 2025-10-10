@@ -39,10 +39,10 @@ class P4Transformer(nn.Module):
 
     def forward(self, input):                                                                                                               # [B, L, N, 3]
         device = input.get_device()
-        if input.shape[-1] > 3:
-            input_feat = input[:,:,:,3:4]
-        else:
-            input_feat = input[:,:,:,2:3]
+        # if input.shape[-1] > 3:
+        #     input_feat = input[:,:,:,3:4]
+        # else:
+        input_feat = input[:,:,:,2:3]
             
         xyzs, features = self.tube_embedding(input[:,:,:,:3], input_feat.clone().permute(0,1,3,2))                                             # [B, L, n, 3], [B, L, C, n]
 
