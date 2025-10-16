@@ -9,21 +9,31 @@ epochs: &epochs 100
 # Dataset parameters
 # --------------------------------------
 train_dataset:
-  name: BaseDataset
+  name: LiDARAssistedPseudoLabelingDataset
   params:
-    data_path: &data_path data/mmfi.pkl
-    split: [train_rdn_p3, val_rdn_p3]
-    ratio: 0.1
+    data_path: data/hmpear_mm_mmfi5.pkl
+    split: [train, val]
+    data_path_ref: data/mmfi.pkl
+    split_ref: [train_rdn_p3, val_rdn_p3]
+    ratio_ref: 0.1
+    use_ref: True
 val_dataset:
   name: BaseDataset
   params:
-    data_path: *data_path
-    split: test_rdn_p3
+    data_path: data/hmpear_mm_mmfi5.pkl
+    split: test #_rdn_p3
 test_dataset:
   name: BaseDataset
   params:
+    data_path: data/mmbody.pkl
+    split: test #_rdn_p3
+    # data_path: data/mmfi.pkl
+    # split: test_rdn_p3
+predict_dataset:
+  name: BaseDataset
+  params:
     data_path: data/mmfi.pkl
-    split: test_rdn_p3
+    split: [train_rdn_p3, val_rdn_p3]
 # --------------------------------------
 # Optimizer parameters
 # --------------------------------------
@@ -34,14 +44,16 @@ optim_params:
 # --------------------------------------
 # Learning rate scheduler parameters
 # --------------------------------------
-sched_name: CosineAnnealingWarmRestarts
+sched_name: LinearWarmupCosineAnnealingLR
 sched_params:
-  T_0: 20
-  eta_min: 1.0e-06
+  warmup_epochs: 20
+  max_epochs: *epochs
+  warmup_start_lr: 0.00001
+  eta_min: 0.00001
 # --------------------------------------
 # Model parameters
 # --------------------------------------
-mode: train
+lemt: True
 model_name: P4Transformer
 model_params:
   radius: 0.7
@@ -60,8 +72,15 @@ model_params:
 # --------------------------------------
 # Loss parameters
 # --------------------------------------
-loss_name: MSELoss
-loss_params: null
+loss_name: UnsupLoss
+loss_params:
+  thres_static: 0.2
+  thres_dynamic: 0.05
+  thres_loss: 0.05
+w_lidar: 1.0
+w_pseudo: 1.0
+w_dynamic: 0.01
+w_static: 0.01
 # --------------------------------------
 # Augmentation parameters
 # --------------------------------------
@@ -69,18 +88,14 @@ train_pipeline:
   - name: UniformSample
     params: 
       pad_type: 'start'
-      clip_len: 5
+      clip_len: 6
+      # offset: 1
   - name: GetCentroid
     params: 
       centroid_type: 'kps'
   - name: Normalize
     params:
       feat_scale: null
-  # - name: MultiFrameAggregate
-  #   params:
-  #     num_frames: 3
-  - name: ToITOP
-    params: null
   - name: RemoveOutliers
     params: 
       outlier_type: 'box'
@@ -88,8 +103,13 @@ train_pipeline:
   - name: AddNoisyPoints
     params:
       add_std: 0.2
-      num_added: 8
+      num_added: 32
       zero_centered: false
+    prob: 0.5
+  - name: FlowBasedPointFiltering
+    params:
+      max_dist_threshold: 0.1
+      min_dist_threshold: 0.02
   - name: RandomScale
     params:
       scale_min: 0.9
@@ -107,9 +127,8 @@ train_pipeline:
     prob: 0.5
   - name: ReduceKeypointLen
     params:
-      only_one: true
-      keep_type: 'end'
-      frame_to_reduce: 0
+      only_one: false
+      indexs_to_keep: [4]
   - name: Pad
     params:
       max_len: 256
@@ -123,33 +142,34 @@ val_pipeline: &val_pipeline
   - name: UniformSample
     params:
       pad_type: 'start'
-      clip_len: 5
+      clip_len: 6
+      # offset: 1
   - name: GetCentroid
     params: 
       centroid_type: 'kps'
-  - name: ToITOP
-    params: null
-  # - name: MultiFrameAggregate
-  #   params:
-  #     num_frames: 3
   - name: Normalize
     params:
       feat_scale: null
+  # - name: ToITOP
+  #   params: null
   - name: RemoveOutliers
     params: 
       outlier_type: 'box'
       radius: 1.5
+  - name: FlowBasedPointFiltering
+    params:
+      max_dist_threshold: 0.1
+      min_dist_threshold: 0.02
   - name: ReduceKeypointLen
     params:
-      only_one: true
-      keep_type: 'end'
-      frame_to_reduce: 0
+      only_one: false
+      indexs_to_keep: [4]
   - name: Pad
     params:
       max_len: 256
   - name: ToTensor
     params: null
-test_pipeline:
+test_pipeline: &test_pipeline
   - name: UniformSample
     params:
       pad_type: 'start'
@@ -157,14 +177,11 @@ test_pipeline:
   - name: GetCentroid
     params: 
       centroid_type: 'kps'
-  - name: ToITOP
-    params: null
-  # - name: MultiFrameAggregate
-  #   params:
-  #     num_frames: 3
   - name: Normalize
     params:
       feat_scale: null
+  - name: ToITOP
+    params: null
   - name: RemoveOutliers
     params: 
       outlier_type: 'box'
@@ -179,3 +196,61 @@ test_pipeline:
       max_len: 256
   - name: ToTensor
     params: null
+unsup_pipeline:
+  - name: UniformSample
+    params:
+      pad_type: 'start'
+      clip_len: 6
+  - name: GetCentroid
+    params: 
+      centroid_type: 'kps'
+  - name: ToITOP
+    params: null
+  - name: Normalize
+    params:
+      feat_scale: null
+  - name: RemoveOutliers
+    params: 
+      outlier_type: 'box'
+      radius: 1.5
+  - name: ReduceKeypointLen
+    params:
+      only_one: false
+      indexs_to_keep: [-2, -1]
+  - name: Pad
+    params:
+      max_len: 256
+  - name: ToTensor
+    params: null
+ref_pipeline: 
+  - name: UniformSample
+    params: 
+      pad_type: 'start'
+      clip_len: 5
+  - name: GetCentroid
+    params: 
+      centroid_type: 'kps'
+  - name: Normalize
+    params:
+      feat_scale: null
+  - name: ToITOP
+    params: null
+  - name: RemoveOutliers
+    params: 
+      outlier_type: 'box'
+      radius: 1.5
+  - name: ReduceKeypointLen
+    params:
+      only_one: true
+      keep_type: 'end'
+      frame_to_reduce: 0
+  - name: Pad
+    params:
+      max_len: 256
+  - name: RandomJitter
+    params:
+      jitter_std: 0.05
+    prob: 0.5
+  - name: ToTensor
+    params: null
+predict_pipeline: *test_pipeline

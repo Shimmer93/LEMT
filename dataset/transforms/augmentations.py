@@ -87,7 +87,7 @@ class RemoveOutliers():
                 raise ValueError('You should never reach here!')
             
             if len(inliers[0]) == 0:
-                sample['point_clouds'][i] = sample['point_clouds'][i][:1]
+                sample['point_clouds'][i] = np.zeros((2, sample['point_clouds'][i].shape[1]))
             else:
                 sample['point_clouds'][i] = sample['point_clouds'][i][inliers]
 

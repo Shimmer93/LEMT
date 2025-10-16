@@ -104,5 +104,5 @@ class FlowBasedPointFiltering():
             new_pcs.append(new_pc)
     
         sample['point_clouds'] = new_pcs
-        sample['keypoints'] = sample['keypoints'][1:]
+        sample['keypoints'] = sample['keypoints'][:-1]
         return sample

@@ -16,10 +16,10 @@ class LiDARAssistedPseudoLabelingDataset(ReferenceDataset):
         self.transform_unsup = transform_unsup
 
         if use_ref:
-            self.split_unsup = self.split_ref_[int(len(self.split_ref_) * ratio_ref):]
+            self.split_unsup = self.split_ref_ #[int(len(self.split_ref_) * ratio_ref):]
             self.data_unsup = [self.all_data_ref['sequences'][i] for i in self.split_unsup]
         else:
-            self.split_unsup = self.split_[int(len(self.split_) * ratio):]
+            self.split_unsup = self.split_ #[int(len(self.split_) * ratio):]
             self.data_unsup = [self.all_data['sequences'][i] for i in self.split_unsup]
         self.seq_lens_unsup = [len(seq['keypoints']) for seq in self.data_unsup]
         self.len_unsup = int(np.sum(self.seq_lens_unsup))
